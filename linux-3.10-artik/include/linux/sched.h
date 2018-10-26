@@ -1054,6 +1054,12 @@ struct sched_rt_entity {
 #endif
 };
 
+struct sched_wrr_entity {
+	unsigned int time_slice;
+	unsigned int weight;
+	struct list_head run_list;
+	int was_boosted;
+};
 
 struct rcu_node;
 
@@ -1070,7 +1076,7 @@ struct task_struct {
 	atomic_t usage;
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
-
+    struct sched_wrr_entity wrr;
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
