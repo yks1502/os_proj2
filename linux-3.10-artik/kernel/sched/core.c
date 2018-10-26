@@ -1717,7 +1717,9 @@ void sched_fork(struct task_struct *p)
 		p->sched_reset_on_fork = 0;
 	}
 
-	if (!rt_prio(p->prio))
+	if(task_has_wrr_policy(p))
+	    p->sched_class = &sched_wrr_class;
+	else if(!rt_prio(p->prio))
 		p->sched_class = &fair_sched_class;
 
 	if (p->sched_class->task_fork)
@@ -3662,6 +3664,8 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
 	else
 		p->sched_class = &fair_sched_class;
 
+    if(p->policy == SCHED_WRR)
+        p->sched_class = &sched_wrr_class;
 	p->prio = prio;
 
 	if (running)
@@ -3860,6 +3864,8 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	}
 	else
 		p->sched_class = &fair_sched_class;
+	if(p->policy == SCHED_WRR)
+	    p->sched_class = &sched_wrr_class;
 	set_load_weight(p);
 }
 
@@ -3901,7 +3907,7 @@ recheck:
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-				policy != SCHED_IDLE)
+				policy != SCHED_IDLE && policy != SCHED_WRR)
 			return -EINVAL;
 	}
 
@@ -7015,6 +7021,7 @@ void __init sched_init(void)
 		rq->calc_load_update = jiffies + LOAD_FREQ;
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt, rq);
+		init_wrr_rq(&rq->wrr, rq);
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
@@ -7108,7 +7115,7 @@ void __init sched_init(void)
 	/*
 	 * During early bootup we pretend to be a normal task:
 	 */
-	current->sched_class = &fair_sched_class;
+	current->sched_class = &sched_wrr_class;
 
 #ifdef CONFIG_SMP
 	zalloc_cpumask_var(&sched_domains_tmpmask, GFP_NOWAIT);
@@ -8150,4 +8157,34 @@ void dump_cpu_task(int cpu)
 {
 	pr_info("Task dump for CPU %d:\n", cpu);
 	sched_show_task(cpu_curr(cpu));
+}
+
+
+SYSCALL_DEFINE1(get_wrr_info, struct wrr_info *, info)
+{
+	int cpu;
+	struct wrr_info ret_info;
+	int cpus = 0;
+	int cpy_res = 0;
+	for_each_possible_cpu(cpu) {
+		struct rq *rq;
+		rq = cpu_rq(cpu);
+		ret_info.nr_running[cpu] = rq->wrr.nr_running;
+		ret_info.total_weight[cpu] = rq->wrr.total_weight;
+		cpus++;
+	}
+	ret_info.num_cpus = cpus;
+	cpy_res = copy_to_user(info, &ret_info, sizeof(struct wrr_info));
+	return cpy_res;
+}
+static int is_root(void)
+{
+	return current_cred()->uid == 0;
+}
+SYSCALL_DEFINE1(set_wrr_weight, int, boosted_weight)
+{
+	if (!is_root())
+		return -EPERM;
+	set_wrr_weight(boosted_weight);
+	return 0;
 }
