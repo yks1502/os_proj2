@@ -73,6 +73,13 @@ extern __read_mostly int scheduler_running;
  */
 #define RUNTIME_INF	((u64)~0ULL)
 
+static inline int fair_policy(int policy)
+{
+	if (policy == SCHED_NORMAL || policy == SCHED_BATCH)
+		return 1;
+	return 0;
+}
+
 static inline int rt_policy(int policy)
 {
 	if (policy == SCHED_FIFO || policy == SCHED_RR)
@@ -86,7 +93,6 @@ static inline int wrr_policy(int policy)
 		return 1;
 	return 0;
 }
-
 
 static inline int task_has_rt_policy(struct task_struct *p)
 {
@@ -1352,6 +1358,9 @@ extern void init_wrr_rq(struct wrr_rq *rt_rq, struct rq *rq);
 extern void set_wrr_weight(int weight);
 extern void init_cfs_rq(struct cfs_rq *cfs_rq);
 extern void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq);
+extern void init_wrr_rq(struct wrr_rq *rt_rq, struct rq *rq);
+
+extern void set_wrr_weight(int weight);
 
 extern void cfs_bandwidth_usage_inc(void);
 extern void cfs_bandwidth_usage_dec(void);
